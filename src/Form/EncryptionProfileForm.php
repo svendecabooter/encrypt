@@ -33,6 +33,13 @@ class EncryptionProfileForm extends EntityForm {
   protected $encrypt_service;
 
   /**
+   * Keeps track of extra confirmation step on profile edit.
+   *
+   * @var bool
+   */
+  protected $edit_confirmed = FALSE;
+
+  /**
    * Constructs a EncryptionProfileForm object.
    *
    * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
@@ -63,6 +70,20 @@ class EncryptionProfileForm extends EntityForm {
 
     /** @var $encryption_profile \Drupal\encrypt\Entity\EncryptionProfile */
     $encryption_profile = $this->entity;
+
+    $disabled = FALSE;
+    if ($this->operation == "edit" && !$this->edit_confirmed) {
+      $disabled = TRUE;
+    }
+
+    if ($disabled) {
+      $form['confirm_edit'] = array(
+        '#type' => 'checkbox',
+        '#title' => $this->t('I understand the risks of editing this encryption profile.'),
+        '#description' => $this->t('Please acknowledge that you understand editing this encryption profile will make data that was previously encrypted with this profile <strong>unencryptable</strong>.'),
+      );
+    }
+
     $form['label'] = array(
       '#type' => 'textfield',
       '#title' => $this->t('Label'),
@@ -70,6 +91,7 @@ class EncryptionProfileForm extends EntityForm {
       '#default_value' => $encryption_profile->label(),
       '#description' => $this->t("Label for the encryption profile."),
       '#required' => TRUE,
+      '#disabled' => $disabled,
     );
 
     $form['id'] = array(
@@ -105,6 +127,7 @@ class EncryptionProfileForm extends EntityForm {
         'event' => 'change',
         'wrapper' => 'encrypt-settings',
       ),
+      '#disabled' => $disabled,
     );
 
     $form['encryption']['encryption_key'] = array(
@@ -112,6 +135,7 @@ class EncryptionProfileForm extends EntityForm {
       '#title' => $this->t('Encryption Key'),
       '#required' => TRUE,
       '#default_value' => $encryption_profile->getEncryptionMethod(),
+      '#disabled' => $disabled,
     );
 
     if ($current_encryption_method = $encryption_profile->getEncryptionMethod()) {
@@ -146,6 +170,15 @@ class EncryptionProfileForm extends EntityForm {
     // Only validate when submitting the form, not on AJAX rebuild.
     if (!$form_state->isSubmitted()) {
       return;
+    }
+
+    // Check if we can enable full profile editing,
+    // after explicit user confirmation.
+    if ($this->operation == "edit" && $this->edit_confirmed != TRUE) {
+      $form_state->setRebuild();
+      if ($form_state->getValue('confirm_edit') == TRUE) {
+        $this->edit_confirmed = TRUE;
+      }
     }
 
     $form_state->cleanValues();
